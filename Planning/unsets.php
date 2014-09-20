@@ -1,0 +1,9 @@
+<?php session_start();
+// Unsets.php - temporary, only for debugging.
+
+// Unset all session variables.
+unset($_SESSION['arr_Bitcoin_Price']);
+unset($_SESSION['buy_high']);
+unset($_SESSION['sell_low']);
+echo "Unsets!";
+?>

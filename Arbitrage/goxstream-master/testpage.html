@@ -1,0 +1,14 @@
+<html>
+  <head>
+    <title>Yeah, we're just trying this</title>
+  </head>
+  <body>
+    <p>Information?</p>
+    <script src="index.js">
+var gox = require('goxstream')
+var fs  = require('fs')
+var options = { currency: 'EUR', ticker: false, depth: true }
+gox.createStream(options).pipe(fs.createWriteStream('./EUR'))
+    </script>
+  </body>
+</html>

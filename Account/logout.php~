@@ -1,0 +1,16 @@
+<?php session_start(); ?>
+<?php
+  // TODO: Make $_SESSION['user'] an array, so it can hold values as you continue to add them.
+  global $outMessage;
+  $outMessage = "";
+  if(isset($_SESSION['user']) && isset($_POST['returnURL'])) {
+    unset($_SESSION['user']);
+    header("Location: " . $_POST['returnURL']);
+  } else {
+    $outMessage .= "Logout Failed Somehow!\n";
+  }
+?>
+
+<html>
+  <?php echo $outMessage;?>
+</html>

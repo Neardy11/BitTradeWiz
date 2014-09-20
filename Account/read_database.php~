@@ -1,0 +1,36 @@
+<?php
+  // Purely for debuggin the SQL side of things. Simply lists the entire database.
+  session_start();
+
+  unset($_SESSION['user']);
+
+  echo "<a href='#tbAccountInfo'>Jump to Practice Account Info</a><br />\n";
+  echo "<h1 id='tbUserData'>tbUserData</h1>";
+  $connection = mysqli_connect($LOCALHOST, $USER, $SQL_PASSWORD, $DEFAULT_DB);
+  $sql_query = "SELECT * FROM tbUserData";
+  if($result = mysqli_query($connection, $sql_query)) {
+    while($row = mysqli_fetch_array($result)) {
+      foreach($row as $key => $value) {
+        echo "$key: $value<br />\n";
+      }
+      echo "<hr><br />\n";
+    }
+  } else {
+    echo "Problem: " . mysqli_error($connection) . "<br />\n";
+  }
+  
+  echo "<h1 id='tbAccountInfo'>Practice Account Info</h1><br />\n";
+  $sql_query = "SELECT * FROM tbPracticeAccounts";
+  if($result = mysqli_query($connection, $sql_query)) {
+    while($row = mysqli_fetch_array($result)) {
+      foreach($row as $key => $value) {
+        echo "$key: $value<br />\n";
+      }
+      echo "<hr><br />\n";
+    }
+  } else {
+    echo "Problem: " . mysqli_error($connection) . "<br />\n";
+  }
+  
+  mysqli_close($connect);
+?>

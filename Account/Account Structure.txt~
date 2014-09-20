@@ -1,0 +1,56 @@
+User Account:
+
+------------dbUsers--tbUserData--------
+-PID - ID for SQL use
+-UserID (aka Bitcoin Address)
+-Password (optional)
+-Balance (in BTC - can be withdrawn or added to)
+-Balance_NT (Non-transferrable balance)
+-PracticeAcctIdList (found in dbPracticeAccts database)
+-History (Keep track of payments, withdrawals, earnings here)
+-Incentives (BTC/BTC purchase match, etc.)
+
+------------tbPracticeAccounts------------
+-Account ID (linked from UserID - NO LINK back to User)
+-Shared (boolean - can information be disclosed and used for research?)
+-(practice) USD Balance (Can be traded - new USDs can be bought for real BTC)
+-(practice) BTC Balance (Can be traded - new BTCs can be bought for real BTC)
+-Settings (Flags here, e.g., take of 0.6% for MtGox simulation, etc.)
+-History (Keep track of transactions and amounts here)
+-ValueIncrease (For recording how much value has increased. Set to last value claimed at)
+
+-----------------------------Pricing / Rewards Schedule (V1.0.0)---------------------------------
+Ground Rules:
+1) BTC Balance is marked as either Transferrable (T) or Non-Transferrable (NT)
+  A) Transferrable bitcoins can be withdrawn at pleasure to bitcoin wallet after 0.001 or whatever.
+  B) Non-transferrable bitcoins can only be used to purchase account features.
+  C) When purchasing an account feature, the non-transferrable BTC are used FIRST ALWAYS.
+2) BTC can be deposited into account - these are ALWAYS transferrable, and NEVER charged a fee.
+3) Be VERY CLEAR to explain to the user that most of these rules are:
+  A) Incentives!
+  B) Success on practice site is paid in REAL BTC. Use them to invest and make REAL USD.
+  C) Costs are mostly in place to avoid spam and to encourage user NOT to give up on an account
+  D) WHY I can give such generous payments for success - because I use that data for research
+4) Goal of Pricing / Rewards Schedule:
+  A) Profit should always be positive - user should never take more than they give (count adverts)
+  B) Payment of a reasonable amount in BTC (above minimum) should be attainable after no more
+     than one 10% increment
+
+-On create a new account (requires a new, unregistered BTC address):
+++0.1 non-transferrable BTC credit to account (i.e., cannot be withdrawn - only used on site)
+++On first purchase of BTC to account, for every 0.01 BTC (transferrable) deposited into account,
+    match with 0.01 BTC (non-transferrable) account credit.
+-Practice Accounts:
+++Opening a practice account costs 0.02 BTC Balance
+++Upon opening, 2 pBTC are automatically credited to practice account - this is the base investment
+++More pBTC can be purchased for a cost of 0.001 BTC / 1 pBTC
+++Every 10% gain on website results in a REAL BTC balance added to user's account:
+  A) For visible accounts where I harvest their information, 0.0002 BTC.
+  B) For invisible accounts, 0.00005 BTC.
+++Every 100% gain on website results in additional incentive bonus:
+  A) Visible: 0.0008 BTC
+  B) Invisible: 0.00009 BTC
+-For feedback:
+++Any and all positive feedback is welcomed!
+++Any feedback that results in a website feature modification will receive 0.001 BTC.
+++Any feedback that is constructive, thought-out and NOT spammy in ANY way will receive at least 0.00001 BTC.

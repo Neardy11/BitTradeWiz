@@ -1,0 +1,136 @@
+<?php session_start(); include_once($_SERVER['DOCUMENT_ROOT'] . "/sql_includes.php");
+
+$fName = $_SERVER['DOCUMENT_ROOT'] . "/database.dat";
+if($_POST['dataSend']=='true') {
+  $toAdd = $_POST['value'] . "\n";
+} else if($_POST['dataSend']=='cleanup') {
+  // Open file, remove all entries older than 3 months...
+  $fileContents = file_get_contents($fName);
+  $fileLines = explode("\n", $fileContents);
+  
+  // Abridgement: In intervals of n seconds for prices older than one week (604800 seconds), only take
+  //  the minimum and maximum values.
+  $TIME_PERIOD_IN_SECONDS = 30;
+  $END_ABRIDGEMENT_TIME = (time() - 604800);
+  $keepGoing = true;
+  $startIndex = 0;
+  
+  $abridgedData = "";
+  
+  $trimmed = 0;
+  
+  while(true == $keepGoing) {
+    // In this series, get our first line (the first after the ones we've checked before)
+    //  Get the time data - we will be starting at startTime and ending at endTime to move on.
+    $startLine = explode("-", $fileLines[$startIndex]);
+    $startTime = $startLine[1];
+    $endTime = ($startTime + $TIME_PERIOD_IN_SECONDS);
+    
+    $counter = 0;
+    
+    // Now for our termination condition - if the end time is past our END_ABRIDGEMENT_TIME,
+    //  in the past, stop our loop now.
+    if($endTime > $END_ABRIDGEMENT_TIME) {
+      $keepGoing = false;
+    }
+    
+    // Initialize our for loop... get the current line, current min and max set to first value also.
+    $currentLine = $startLine;
+    $currentMin = $startLine[2];
+    $currentMax = $startLine[2];
+    $volume = $startLine[3];  // This is a very loose solution because we don't yet use volume. It just takes any number.
+    for($i = $startIndex; $currentLine[1] < $endTime; $i++) {
+      // Will loop until the next line is past the end time.
+      $currentLine = explode("-", $fileLines[$i]);
+      
+      $counter++;
+      
+      if($currentLine[2] > $currentMax) {
+        $currentMax = $currentLine[2];
+        $volume = $currentLine[3];
+      }
+      
+      if($currentLine[2] < $currentMin) {
+        $currentMin = $currentLine[2];
+        $volume = $currentLine[3];
+      }
+      
+      $startIndex = $i + 1;
+      $trimmed += $counter;
+    }
+    
+    // Now we have our min and max data. If they are the same, only output one value.
+    //  If they are different, output two. Offset by half of TIME_PERIOD_IN_SECONDS.
+    if($currentMin == $currentMax) {
+      $abridgedData .= "TRADE-$startTime-$currentMin-$volume\n";
+    } else {
+      $abridgedData .= "TRADE-$startTime-$currentMin-$volume\n";
+      $abridgedData .= "TRADE-$endTime-$currentMax-$volume\n";
+    }
+  }
+  
+  echo "$trimmed values have been trimmed from this file.\n";
+  
+  // Now, collect the rest of our data, and slap it at the end of our abridgedData.
+  for($i = $startIndex; isset($fileLines[$i]); $i++) {
+    $abridgedData .= ($fileLines[$i] . "\n");
+  }
+  
+  // Put back into our database.
+  file_put_contents($fName, $abridgedData, LOCK_EX);
+  
+  // Aaaaand re-set our values for the next part of this function.
+  $fileContents = file_get_contents($fName);
+  $fileLines = explode("\n", $fileContents);
+  
+  // Everything is in the array. So, begin extracting dates.
+  $keepGoing = true; $i = 0; $trimFile = false; $trimEndLine = 0;
+  while($keepGoing==true) {
+    $data = explode("-", $fileLines[$i]);
+    $dateInfo = $data[1];
+
+    // Now, check the date. If it is newer than 3 months, stop here. 3 months = 7889220 seconds
+    // Terminate the loop, if ready.
+    if((time() - $dateInfo) < 7889220) {
+      $keepGoing = false;
+      break;
+    } else {
+      // But, we're not ready, so get ready to cut that line!
+      $trimFile = true;
+      $trimEndLine = $i;
+    }
+
+    $i++;
+  }
+  
+  // Trim here
+  if($trimFile == true) {
+    // So, just erase the file, and write from lines $trimEndLine to the end back into the file.
+    file_put_contents($fName, "", LOCK_EX);
+    for($j = ($trimEndLine + 1); isset($fileLines[$j+1]); $j++) {
+      file_put_contents($fName, $fileLines[$j] . "\n", FILE_APPEND | LOCK_EX);
+    }
+  }
+  echo $i . " entries processed.";
+  
+} else {
+  $toAdd = "NO VALUE SENT.\n";
+}
+file_put_contents($fName, $toAdd, FILE_APPEND | LOCK_EX);
+file_put_contents($_SERVER['DOCUMENT_ROOT'] . "/backup.dat", $toAdd, FILE_APPEND | LOCK_EX); // Just for now, until you're sure this works.
+echo "File Write Successful\n";
+
+// Now, here, we perform our GLOBAL list operations - add bitcoin price to our global array,
+//  and also look in the OPERATION_QUEUE to see if a TRADE_CHECK event exists. If not, add it.
+//  If the arr_bitcoin_price doesn't exist, add it anyways. Same for operation_queue
+if('true' == $_POST['dataSend']) {
+  $lineData = explode("-", $_POST['value']);
+  
+  // TODO This bit needs to be uncommented ONLY in development OR active launch - otherwise large amounts of data can be used!
+  btcPricePush($lineData[2] / 100000);
+
+  if(!operationQueueSearch("TRADE_CHECK")) {
+    operationQueuePush("TRADE_CHECK");
+  }
+}
+?>

@@ -1,0 +1,148 @@
+<?php
+// portfolio_add_balance.php
+// This file adds amount given from POST method to the account's balance, as specified from the "portfolio_add_balance_form.php" file.
+// Concerns: validity of all input (must have btcToAdd, returnAddress, practiceAccount, and session variable user must be set)
+
+// Necissary includes...
+session_start();
+include_once($_SERVER['DOCUMENT_ROOT'] . "/sql_includes.php");
+
+// Debugging information
+$bContinue = true;
+$errMessage = "";
+
+// Need these variables to be global, they're used later...
+$btcToAdd = "";
+$userID = "";
+$practiceAccountID = "";
+
+// Check all inputs to make sure they exist, sanatize SQL sensitive input.
+if(!isset($_POST['btcToAdd'])) {
+  $bContinue = false;
+  $errMessage .= "No Bitcoin Quantity Information Included!<br />\n";
+} else {
+  $btcToAdd = escape_string($_POST['btcToAdd']);
+}
+
+if(!isset($_POST['returnURL'])) {
+  $bContinue = false;
+  $errMessage .= "No return address specified!<br />\n";
+}
+
+if(!isset($_SESSION['user'])) {
+  $bContinue = false;
+  $errMessage .= "Nobody is logged in!<br />\n";
+} else {
+  $userID = escape_string($_SESSION['user']['ID']);
+}
+
+if(!isset($_POST['practiceAccountID'])) {
+  $bContinue = false;
+  $errMessage .= "No practice account specified!<br />\n";
+} else {
+  $practiceAccountID = escape_string($_POST['practiceAccountID']);
+}
+
+// If all data is present (bContinue is true), make sure that user has sufficient balance to buy the extra BTC.
+if($bContinue) {
+  // Connect to SQL server
+  $connection = mysqli_connect($LOCALHOST, $USER, $SQL_PASSWORD, $DEFAULT_DB);
+  
+  // Ask if the user has enough! We're going to ask SQL directly in case of tampering.
+  $sql_query = "SELECT (Balance_NT, Balance) FROM tbUserData WHERE UserID='$userID'";
+  if($result = mysqli_query($connection, $sql_query)) {
+    $row = mysqli_fetch_array($result);
+    $_SESSION['user']['Total_Balance'] = ($row['Balance'] + $row['Balance_NT']) / $DIV_BY_AMOUNT;
+    $_SESSION['user']['Balance'] = $row['Balance'] / $DIV_BY_AMOUNT;
+    $_SESSION['user']['Balance_NT'] = $row['Balance_NT'] / $DIV_BY_AMOUNT;
+  }
+  
+  // Now do the actual check - does the user have enough?
+  if(!(($btcToAdd * $PRACTICE_BTC_PRICE) <= $_SESSION['user']['Total_Balance'])) {
+    $bContinue = false;
+    $errMessage .= "User has insufficient balance to add extra bitcoins to this portfolio!<br />\n";
+  }
+}
+
+// So, now if all data is present and the user has a sufficient balance, deduct amount from user account now...
+if($bContinue) {
+  // Connect to SQL server
+  $connection = mysqli_connect($LOCALHOST, $USER, $SQL_PASSWORD, $DEFAULT_DB);
+  
+  // First, update the user information and subtract the appropriate amount.
+  $btcCost = $btcToAdd * $PRACTICE_BTC_PRICE;
+  
+  // Remove from the NT balance first, then any remainder comes from the transferrable balance.
+  if($_SESSION['user']['Balance_NT'] <= $btcCost) {
+    $btcCost -= $_SESSION['user']['Balance_NT'];
+    $_SESSION['user']['Balance_NT'] = 0;
+  } else {
+    $_SESSION['user']['Balance_NT'] -= $btcCost;
+    $btcCost = 0;
+  }
+  
+  if(0 < $btcCost) {
+    $_SESSION['user']['Balance'] -= $btcCost;
+    $btcCost = 0;
+  }
+  
+  $_SESSION['user']['Total_Balance'] = $_SESSION['user']['Balance'] + $_SESSION['user']['Balance_NT'];
+  
+  // Now, update the user balance on SQL.
+  $sql_query = "UPDATE tbUserData SET Balance='" . ($_SESSION['user']['Balance'] * $DIV_BY_AMOUNT) . "', ";
+  $sql_query .= " Balance_NT='" . ($_SESSION['user']['Balance_NT'] * $DIV_BY_AMOUNT) . "' WHERE UserID='$userID'";
+  if(!($result = mysqli_query($connection, $sql_query))) {
+    $bContinue = false;
+    $errMessage .= "Error updating SQL with user information for user $userID. Whoops! You'll be re-compensated the used BTC.<br />\n";
+    $errMessage .= "Faulty query: '$sql_query'<br />\n";
+    $_SESSION['user']['Balance_NT'] += $btcCost;
+    $_SESSION['user']['Total_Balance'] += $btcCost;
+  }
+}
+
+// Well, the user now has been deducted the amount, so you'd better update the portfolio too!
+if($bContinue) {
+  // Connect to the SQL server
+  $connection = mysqli_connect($LOCALHOST, $USER, $SQL_PASSWORD, $DEFAULT_DB);
+  
+  // Via SQL, get the portfolio current balance in BTC.
+  $sql_query = "SELECT Balance_USD, Balance_BTC FROM tbPracticeAccounts WHERE AcctID='$practiceAccountID'";
+  $balanceUSD = 0;
+  $balanceBTC = 0;
+  $value = 0;
+  if($result = mysqli_query($connection, $sql_query)) {
+    $row = mysqli_fetch_array($result);
+    
+    $balanceUSD = ($row['Balance_USD'] / $DIV_BY_AMOUNT);
+    $balanceBTC = ($row['Balance_BTC'] / $DIV_BY_AMOUNT);
+    $balanceBTC += $btcToAdd;
+    $value = $balanceUSD + ($balanceBTC * getCurrentBTCPrice());
+    
+    // Finally, update SQL with added practice BTC.
+    $sql_query = "UPDATE tbPracticeAccounts SET Balance_BTC='" . $balanceBTC * $DIV_BY_AMOUNT . "', ValueIncrease='$value' WHERE AcctID=$practiceAccountID";
+    if($result = mysqli_query($connection, $sql_query)) {
+      // Update session variables...
+      $_SESSION['user']['PracticeAcct'][$practiceAccountID]['Balance_BTC'] += $balanceBTC;
+      $_SESSION['user']['PracticeAcct'][$practiceAccountID]['ValueIncrease'] = $value;
+      $_SESSION['user']['PracticeAcct'][$practiceAccountID]['Value'] = $value;
+    } else {
+      $bContinue = false;
+      $errMessage .= "Error updating practice account $practiceAccountID to new balance $balanceBTC and value $value<br />\n";
+      $errMessage .= "Faulty query: $sql_query<br />\n";
+      $errMessage .= mysqli_error($connection) . "<br />\n";
+    }
+  } else {
+    $bContinue = false;
+    $errMessage .= "Error retrieving account information for practice account $practiceAccountID<br />\n";
+    $errMessage .= "Faulty query: $sql_query<br />\n";
+    $errMessage .= mysqli_error($connection) . "<br />\n";
+  }
+}
+
+// So, now everything is done, let's redirect if all was well, and if not we'll output our error message.
+if($bContinue) {
+  header("Location: " . $_POST['returnURL']);
+} else {
+  echo $errMessage;
+}
+?>
